@@ -41,7 +41,7 @@ class _TableSkeletonLoaderState extends State<TableSkeletonLoader>
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final tableWidth = math.max(850.0, constraints.maxWidth);
+        final tableWidth = math.max(650.0, constraints.maxWidth);
 
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -66,7 +66,7 @@ class _TableSkeletonLoaderState extends State<TableSkeletonLoader>
                           children: [
                             // Coluna Nome
                             Expanded(
-                              flex: 3,
+                              flex: 4,
                               child: Row(
                                 children: [
                                   Container(
@@ -89,19 +89,9 @@ class _TableSkeletonLoaderState extends State<TableSkeletonLoader>
                                 ],
                               ),
                             ),
-                            // Coluna CPF
-                            Expanded(
-                              flex: 2,
-                              child: _buildShimmerBox(width: 110, height: 12),
-                            ),
-                            // Coluna RG
-                            Expanded(
-                              flex: 2,
-                              child: _buildShimmerBox(width: 90, height: 12),
-                            ),
                             // Coluna Cidade
                             Expanded(
-                              flex: 2,
+                              flex: 3,
                               child: _buildShimmerBox(width: 120, height: 12),
                             ),
                             // Coluna Documentos
@@ -111,10 +101,12 @@ class _TableSkeletonLoaderState extends State<TableSkeletonLoader>
                             ),
                             // Coluna Ações
                             Expanded(
-                              flex: 2,
+                              flex: 3,
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
+                                  _buildShimmerBox(width: 60, height: 28, radius: 6),
+                                  const SizedBox(width: 8),
                                   _buildShimmerBox(width: 32, height: 32, radius: 6),
                                   const SizedBox(width: 8),
                                   _buildShimmerBox(width: 32, height: 32, radius: 6),

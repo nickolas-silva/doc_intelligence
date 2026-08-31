@@ -19,7 +19,7 @@ class DocIntelligenceApp extends StatelessWidget {
     return GetMaterialApp(
       title: 'DOC Intelligence',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme,
+      theme: AppTheme.darkTheme,
       initialRoute: AppRoutes.home,
       getPages: AppPages.pages,
       initialBinding: ClientListBinding(),

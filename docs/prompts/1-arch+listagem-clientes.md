@@ -47,5 +47,6 @@ A tela inicial com a listagem em formato Datatable de Clientes foi implementada 
 
 
   # COMENTARIOS DO DESENVOLVEDOR
-  - Retirar dados senssiveis da listagem 
+  - Retirar dados sensiveis como cpf e rg da listagem de usuarios 
   - Cores do tema nao agrandaram, mudando para um tema escuro com tons de amarelo/dourado
+  - remover switch de modo de consumo do mockoon ou mock repository da interface

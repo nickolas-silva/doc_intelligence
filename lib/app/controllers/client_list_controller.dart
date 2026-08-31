@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-import '../core/app_config.dart';
 import '../core/routes/app_routes.dart';
 import '../domain/models/client_model.dart';
 import '../repository/client_repository.dart';
@@ -28,9 +27,6 @@ class ClientListController extends GetxController {
   // Controller do campo de texto de busca
   final TextEditingController searchInputController = TextEditingController();
 
-  // Flag reativa para indicar se está usando Mock ou API
-  final RxBool isUsingMock = AppConfig.useMockRepository.obs;
-
   @override
   void onInit() {
     super.onInit();
@@ -43,11 +39,7 @@ class ClientListController extends GetxController {
     fetchClients();
   }
 
-  @override
-  void onClose() {
-    searchInputController.dispose();
-    super.onClose();
-  }
+
 
   /// Busca os clientes de forma paginada e com tratamento de exceções
   Future<void> fetchClients({int? page}) async {

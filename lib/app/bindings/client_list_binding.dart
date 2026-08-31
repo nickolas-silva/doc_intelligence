@@ -43,6 +43,7 @@ class ClientListBinding extends Bindings {
       () => ClientListController(
         repository: Get.find<ClientRepository>(),
       ),
+      fenix: true,
     );
   }
 }

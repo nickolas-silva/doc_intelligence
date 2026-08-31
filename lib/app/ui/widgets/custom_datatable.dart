@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import '../../core/app_theme.dart';
 import '../../domain/models/client_model.dart';
 
-/// Tabela de clientes estilizada com suporte a ordenação visual, hover e ações.
+/// Tabela de clientes estilizada com suporte a hover e ações.
+/// Colunas: Nome, Cidade/UF, Documentos, Ações.
+/// CPF e RG são dados sensíveis e ficam ocultos na listagem.
 class CustomDatatable extends StatelessWidget {
   final List<ClientModel> clients;
   final Function(ClientModel) onViewDocuments;
@@ -22,7 +24,7 @@ class CustomDatatable extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final tableWidth = math.max(850.0, constraints.maxWidth);
+        final tableWidth = math.max(650.0, constraints.maxWidth);
 
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -42,7 +44,7 @@ class CustomDatatable extends StatelessWidget {
                   child: const Row(
                     children: [
                       Expanded(
-                        flex: 3,
+                        flex: 4,
                         child: Text(
                           'CLIENTE / NOME',
                           style: TextStyle(
@@ -54,31 +56,7 @@ class CustomDatatable extends StatelessWidget {
                         ),
                       ),
                       Expanded(
-                        flex: 2,
-                        child: Text(
-                          'CPF',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: AppTheme.textSecondary,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        flex: 2,
-                        child: Text(
-                          'RG',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: AppTheme.textSecondary,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        flex: 2,
+                        flex: 3,
                         child: Text(
                           'CIDADE / UF',
                           style: TextStyle(
@@ -102,7 +80,7 @@ class CustomDatatable extends StatelessWidget {
                         ),
                       ),
                       Expanded(
-                        flex: 2,
+                        flex: 3,
                         child: Align(
                           alignment: Alignment.centerRight,
                           child: Text(
@@ -166,16 +144,16 @@ class _ClientRowState extends State<_ClientRow> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         decoration: BoxDecoration(
-          color: _isHovered ? AppTheme.surfaceMuted.withValues(alpha: 0.5) : AppTheme.surface,
+          color: _isHovered ? AppTheme.surfaceMuted : AppTheme.surface,
           border: const Border(
             bottom: BorderSide(color: AppTheme.border),
           ),
         ),
         child: Row(
           children: [
-            // Nome + Avatar Fictício
+            // Nome + Avatar
             Expanded(
-              flex: 3,
+              flex: 4,
               child: Row(
                 children: [
                   CircleAvatar(
@@ -219,34 +197,9 @@ class _ClientRowState extends State<_ClientRow> {
               ),
             ),
 
-            // CPF
-            Expanded(
-              flex: 2,
-              child: Text(
-                client.cpf,
-                style: const TextStyle(
-                  color: AppTheme.textPrimary,
-                  fontSize: 13,
-                  fontFamily: 'monospace',
-                ),
-              ),
-            ),
-
-            // RG
-            Expanded(
-              flex: 2,
-              child: Text(
-                client.rg,
-                style: const TextStyle(
-                  color: AppTheme.textSecondary,
-                  fontSize: 13,
-                ),
-              ),
-            ),
-
             // Cidade
             Expanded(
-              flex: 2,
+              flex: 3,
               child: Row(
                 children: [
                   const Icon(
@@ -283,7 +236,7 @@ class _ClientRowState extends State<_ClientRow> {
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: client.totalDocuments > 0
-                          ? AppTheme.accent.withValues(alpha: 0.2)
+                          ? AppTheme.accent.withValues(alpha: 0.25)
                           : AppTheme.border,
                     ),
                   ),
@@ -316,7 +269,7 @@ class _ClientRowState extends State<_ClientRow> {
 
             // Ações
             Expanded(
-              flex: 2,
+              flex: 3,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
@@ -329,18 +282,18 @@ class _ClientRowState extends State<_ClientRow> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
-                          color: AppTheme.accent,
+                          color: AppTheme.primary,
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.folder_open_rounded, size: 14, color: Colors.white),
+                            Icon(Icons.folder_open_rounded, size: 14, color: Color(0xFF0E0E10)),
                             SizedBox(width: 6),
                             Text(
                               'Docs',
                               style: TextStyle(
-                                color: Colors.white,
+                                color: Color(0xFF0E0E10),
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
                               ),

@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../bindings/client_form_binding.dart';
 import '../../bindings/client_list_binding.dart';
+import '../../ui/pages/client_form_page.dart';
 import '../../ui/pages/client_list_page.dart';
 import 'app_routes.dart';
 
@@ -13,24 +14,15 @@ abstract class AppPages {
       page: () => const ClientListPage(),
       binding: ClientListBinding(),
     ),
-    // Placeholder para as próximas etapas (Cadastro/Edição e Split View de Documentos)
     GetPage(
       name: AppRoutes.clientForm,
-      page: () => Scaffold(
-        appBar: AppBar(title: const Text('Formulário de Cliente')),
-        body: const Center(
-          child: Text('Formulário de cadastro/edição (Próxima etapa)'),
-        ),
-      ),
+      page: () => const ClientFormPage(),
+      binding: ClientFormBinding(),
     ),
     GetPage(
       name: AppRoutes.clientDetails,
-      page: () => Scaffold(
-        appBar: AppBar(title: const Text('Documentos do Cliente')),
-        body: const Center(
-          child: Text('Split View e Upload em Lote (Próxima etapa)'),
-        ),
-      ),
+      page: () => const ClientFormPage(),
+      binding: ClientFormBinding(),
     ),
   ];
 }

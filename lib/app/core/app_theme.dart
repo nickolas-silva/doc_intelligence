@@ -1,48 +1,51 @@
 import 'package:flutter/material.dart';
 
-/// Tema visual moderno e corporativo (Legal Tech) com foco em Desktop e Web.
+/// Tema visual escuro e sofisticado (Legal Tech) com tons dourados/âmbar.
 class AppTheme {
-  // Cores Primárias e Acentos
-  static const Color primary = Color(0xFF1E293B); // Slate 800
-  static const Color primaryDark = Color(0xFF0F172A); // Slate 900
-  static const Color accent = Color(0xFF2563EB); // Royal Blue
-  static const Color accentLight = Color(0xFF3B82F6);
-  static const Color accentSubtle = Color(0xFFEFF6FF);
+  // Cores Primárias — Dourado / Âmbar
+  static const Color primary = Color(0xFFD4A843); // Dourado principal
+  static const Color primaryDark = Color(0xFFB8922E); // Dourado escuro
+  static const Color accent = Color(0xFFE8C268); // Dourado claro / destaque
+  static const Color accentLight = Color(0xFFF0D68A);
+  static const Color accentSubtle = Color(0xFF2A2518); // Dourado muito sutil sobre fundo escuro
 
-  // Superfícies e Fundos
-  static const Color background = Color(0xFFF8FAFC); // Slate 50
-  static const Color surface = Color(0xFFFFFFFF);
-  static const Color surfaceMuted = Color(0xFFF1F5F9); // Slate 100
-  static const Color border = Color(0xFFE2E8F0); // Slate 200
-  static const Color borderSubtle = Color(0xFFF1F5F9);
+  // Superfícies e Fundos — Escuros
+  static const Color background = Color(0xFF0E0E10); // Quase preto
+  static const Color surface = Color(0xFF18181B); // Zinc 900
+  static const Color surfaceMuted = Color(0xFF1F1F23); // Surface elevada
+  static const Color border = Color(0xFF2E2E33); // Borda sutil
+  static const Color borderSubtle = Color(0xFF252529);
 
   // Textos
-  static const Color textPrimary = Color(0xFF0F172A); // Slate 900
-  static const Color textSecondary = Color(0xFF64748B); // Slate 500
-  static const Color textMuted = Color(0xFF94A3B8); // Slate 400
+  static const Color textPrimary = Color(0xFFF4F4F5); // Zinc 100
+  static const Color textSecondary = Color(0xFFA1A1AA); // Zinc 400
+  static const Color textMuted = Color(0xFF71717A); // Zinc 500
 
   // Status & Badges
-  static const Color success = Color(0xFF16A34A);
-  static const Color successBg = Color(0xFFDCFCE7);
-  static const Color warning = Color(0xFFD97706);
-  static const Color warningBg = Color(0xFFFEF3C7);
-  static const Color danger = Color(0xFFDC2626);
-  static const Color dangerBg = Color(0xFFFEE2E2);
-  static const Color info = Color(0xFF0284C7);
-  static const Color infoBg = Color(0xFFE0F2FE);
+  static const Color success = Color(0xFF4ADE80); // Verde claro
+  static const Color successBg = Color(0xFF14291E);
+  static const Color warning = Color(0xFFFBBF24); // Âmbar
+  static const Color warningBg = Color(0xFF2A2310);
+  static const Color danger = Color(0xFFF87171); // Vermelho claro
+  static const Color dangerBg = Color(0xFF2A1515);
+  static const Color info = Color(0xFF38BDF8); // Azul claro
+  static const Color infoBg = Color(0xFF0C1F2E);
 
-  static ThemeData get lightTheme {
+  static ThemeData get darkTheme {
     return ThemeData(
       useMaterial3: true,
-      brightness: Brightness.light,
+      brightness: Brightness.dark,
       primaryColor: primary,
       scaffoldBackgroundColor: background,
       fontFamily: 'Inter',
-      colorScheme: const ColorScheme.light(
+      colorScheme: const ColorScheme.dark(
         primary: primary,
         secondary: accent,
         surface: surface,
         error: danger,
+        onPrimary: Color(0xFF0E0E10),
+        onSecondary: Color(0xFF0E0E10),
+        onSurface: textPrimary,
       ),
       cardTheme: CardThemeData(
         color: surface,
@@ -55,7 +58,7 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: surface,
+        fillColor: surfaceMuted,
         hintStyle: const TextStyle(color: textMuted, fontSize: 13),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
@@ -68,13 +71,13 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: accent, width: 1.5),
+          borderSide: const BorderSide(color: primary, width: 1.5),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: primary,
-          foregroundColor: Colors.white,
+          foregroundColor: const Color(0xFF0E0E10),
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           shape: RoundedRectangleBorder(
@@ -117,6 +120,17 @@ class AppTheme {
         dividerThickness: 1,
         horizontalMargin: 20,
         columnSpacing: 24,
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: border),
+        ),
+      ),
+      snackBarTheme: const SnackBarThemeData(
+        backgroundColor: surfaceMuted,
+        contentTextStyle: TextStyle(color: textPrimary),
       ),
     );
   }
