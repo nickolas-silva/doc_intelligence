@@ -6,7 +6,8 @@ import '../domain/models/document_model.dart';
 import 'document_repository.dart';
 
 /// Implementação Mock do repositório de documentos com dados fictícios,
-/// integração com asset PDF e imagem padrão de demonstração.
+/// suporte a hash de arquivo, detecção de concorrência (HTTP 409 Conflict)
+/// e simulação de latência de processamento de IA.
 ///
 /// Não deve importar ou depender do pacote `get`.
 class MockDocumentRepository implements DocumentRepository {
@@ -16,6 +17,9 @@ class MockDocumentRepository implements DocumentRepository {
   static const String defaultPdfAsset = 'assets/mock/desafio.pdf';
   static const String defaultImageUrl =
       'https://dummyimage.com/600x400/000/fff.png&text=Exemplo+de+documento';
+
+  /// Flag para simulação de conflito de concorrência (HTTP 409) no próximo update
+  bool simulateConflictOnNextUpdate = false;
 
   late final List<DocumentModel> _mockDocuments;
 
@@ -31,10 +35,13 @@ class MockDocumentRepository implements DocumentRepository {
         originalName: 'contrato_prestacao_servicos_scan_01.pdf',
         standardizedName: 'CONTRATO_JOAO_28_08_2026.pdf',
         fileType: 'pdf',
-        fileSizeBytes: 523953, // 512 KB
+        fileSizeBytes: 523953,
         status: DocumentStatus.reviewed,
         assetPath: defaultPdfAsset,
+        fileHash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+        version: 2,
         createdAt: DateTime.now().subtract(const Duration(days: 3)),
+        updatedAt: DateTime.now().subtract(const Duration(days: 2)),
         extractedData: {
           'document_type': 'Contrato',
           'document_date': '10/02/2024',
@@ -50,6 +57,8 @@ class MockDocumentRepository implements DocumentRepository {
         fileSizeBytes: 523953,
         status: DocumentStatus.awaitingReview,
         assetPath: defaultPdfAsset,
+        fileHash: 'a8b1c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852c999',
+        version: 1,
         createdAt: DateTime.now().subtract(const Duration(days: 2)),
         extractedData: {
           'document_type': 'Procuração',
@@ -65,6 +74,8 @@ class MockDocumentRepository implements DocumentRepository {
         fileType: 'png',
         fileSizeBytes: 1024 * 180,
         status: DocumentStatus.pending,
+        fileHash: 'b5c2d66298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852d111',
+        version: 1,
         previewUrl: defaultImageUrl,
         createdAt: DateTime.now().subtract(const Duration(days: 1)),
       ),
@@ -76,6 +87,8 @@ class MockDocumentRepository implements DocumentRepository {
         fileType: 'jpg',
         fileSizeBytes: 1024 * 340,
         status: DocumentStatus.pending,
+        fileHash: 'f4d3e77298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852e222',
+        version: 1,
         previewUrl: defaultImageUrl,
         createdAt: DateTime.now().subtract(const Duration(hours: 5)),
       ),
@@ -88,6 +101,8 @@ class MockDocumentRepository implements DocumentRepository {
         fileSizeBytes: 523953,
         status: DocumentStatus.reviewed,
         assetPath: defaultPdfAsset,
+        fileHash: 'c9e4f88298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852f333',
+        version: 1,
         createdAt: DateTime.now().subtract(const Duration(days: 5)),
         extractedData: {
           'document_type': 'Laudo Médico / Pericial',
@@ -100,7 +115,7 @@ class MockDocumentRepository implements DocumentRepository {
 
   @override
   Future<List<DocumentModel>> getDocumentsByClientId(String clientId) async {
-    await Future.delayed(const Duration(milliseconds: 450));
+    await Future.delayed(const Duration(milliseconds: 400));
     return _mockDocuments.where((doc) => doc.clientId == clientId).toList();
   }
 
@@ -113,8 +128,9 @@ class MockDocumentRepository implements DocumentRepository {
     Uint8List? bytes,
     String? previewUrl,
     String? assetPath,
+    String? fileHash,
   }) async {
-    await Future.delayed(const Duration(milliseconds: 600));
+    await Future.delayed(const Duration(milliseconds: 500));
 
     final isPdf = fileType.toLowerCase() == 'pdf';
     final fallbackUrl = isPdf ? null : defaultImageUrl;
@@ -131,6 +147,8 @@ class MockDocumentRepository implements DocumentRepository {
       bytes: bytes,
       assetPath: assetPath ?? fallbackAsset,
       previewUrl: previewUrl ?? fallbackUrl,
+      fileHash: fileHash,
+      version: 1,
       createdAt: now,
     );
 
@@ -154,6 +172,8 @@ class MockDocumentRepository implements DocumentRepository {
 
     final processed = doc.copyWith(
       status: DocumentStatus.awaitingReview, // Vai para aguardando conferência
+      version: doc.version + 1,
+      updatedAt: now,
       extractedData: {
         'document_type': inferredType,
         'document_date': _dateFormat.format(now),
@@ -174,8 +194,44 @@ class MockDocumentRepository implements DocumentRepository {
       throw Exception('Documento não encontrado para atualização.');
     }
 
-    _mockDocuments[index] = document;
-    return document;
+    final existing = _mockDocuments[index];
+
+    // Simulação explícita de concorrência ou detecção de versão desatualizada
+    if (simulateConflictOnNextUpdate) {
+      simulateConflictOnNextUpdate = false;
+      // Atualiza o documento em memória simulando a ação concorrente de outro usuário
+      final conflictDoc = existing.copyWith(
+        version: existing.version + 1,
+        status: DocumentStatus.reviewed,
+        updatedAt: DateTime.now(),
+        extractedData: {
+          ...?existing.extractedData,
+          'observations':
+              'Conferência aprovada em paralelo por outro advogado.',
+        },
+      );
+      _mockDocuments[index] = conflictDoc;
+
+      throw ConflictException(
+        'Conflito de Concorrência (HTTP 409): O documento "${document.originalName}" foi modificado por outro usuário às ${DateFormat('HH:mm:ss').format(conflictDoc.updatedAt ?? DateTime.now())}.',
+        latestDocument: conflictDoc,
+      );
+    }
+
+    if (document.version < existing.version) {
+      throw ConflictException(
+        'Conflito de Concorrência (HTTP 409): A versão local do documento (v${document.version}) está desatualizada em relação à versão mais recente (v${existing.version}).',
+        latestDocument: existing,
+      );
+    }
+
+    final updated = document.copyWith(
+      version: existing.version + 1,
+      updatedAt: DateTime.now(),
+    );
+
+    _mockDocuments[index] = updated;
+    return updated;
   }
 
   @override

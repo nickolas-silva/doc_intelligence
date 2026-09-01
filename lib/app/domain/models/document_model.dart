@@ -37,7 +37,10 @@ class DocumentModel {
   final String? previewUrl;
   final String? assetPath;
   final Uint8List? bytes;
+  final String? fileHash;
+  final int version;
   final DateTime createdAt;
+  final DateTime? updatedAt;
   final Map<String, dynamic>? extractedData;
   final String? errorMessage;
 
@@ -52,7 +55,10 @@ class DocumentModel {
     this.previewUrl,
     this.assetPath,
     this.bytes,
+    this.fileHash,
+    this.version = 1,
     required this.createdAt,
+    this.updatedAt,
     this.extractedData,
     this.errorMessage,
   });
@@ -84,9 +90,16 @@ class DocumentModel {
       status: _parseStatus(json['status']?.toString()),
       previewUrl: json['preview_url']?.toString(),
       assetPath: json['asset_path']?.toString(),
+      fileHash: json['file_hash']?.toString(),
+      version: json['version'] is int
+          ? json['version'] as int
+          : int.tryParse(json['version']?.toString() ?? '1') ?? 1,
       createdAt: json['created_at'] != null
           ? DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now()
           : DateTime.now(),
+      updatedAt: json['updated_at'] != null
+          ? DateTime.tryParse(json['updated_at'].toString())
+          : null,
       extractedData: json['extracted_data'] is Map
           ? Map<String, dynamic>.from(json['extracted_data'] as Map)
           : null,
@@ -126,7 +139,10 @@ class DocumentModel {
       'status': status.name,
       if (previewUrl != null) 'preview_url': previewUrl,
       if (assetPath != null) 'asset_path': assetPath,
+      if (fileHash != null) 'file_hash': fileHash,
+      'version': version,
       'created_at': createdAt.toIso8601String(),
+      if (updatedAt != null) 'updated_at': updatedAt!.toIso8601String(),
       if (extractedData != null) 'extracted_data': extractedData,
       if (errorMessage != null) 'error_message': errorMessage,
     };
@@ -143,7 +159,10 @@ class DocumentModel {
     String? previewUrl,
     String? assetPath,
     Uint8List? bytes,
+    String? fileHash,
+    int? version,
     DateTime? createdAt,
+    DateTime? updatedAt,
     Map<String, dynamic>? extractedData,
     String? errorMessage,
   }) {
@@ -158,7 +177,10 @@ class DocumentModel {
       previewUrl: previewUrl ?? this.previewUrl,
       assetPath: assetPath ?? this.assetPath,
       bytes: bytes ?? this.bytes,
+      fileHash: fileHash ?? this.fileHash,
+      version: version ?? this.version,
       createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
       extractedData: extractedData ?? this.extractedData,
       errorMessage: errorMessage ?? this.errorMessage,
     );

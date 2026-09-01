@@ -79,7 +79,7 @@ class ClientFormPage extends GetView<ClientFormController> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Obx(() {
-                final isEdit = controller.isEditing;
+                final isEdit = controller.isEditing.value;
                 final name = controller.clientNameTitle.value;
                 return Text(
                   isEdit
@@ -102,6 +102,37 @@ class ClientFormPage extends GetView<ClientFormController> {
             ],
           ),
           const Spacer(),
+          // Botão para Teste de Concorrência 409
+          Obx(() {
+            final active = controller.isSimulateConflictActive.value;
+            return OutlinedButton.icon(
+              onPressed: controller.toggleSimulateConflict,
+              icon: Icon(
+                active ? Icons.bolt_rounded : Icons.flash_on_outlined,
+                size: 16,
+                color: active ? AppTheme.warning : AppTheme.textMuted,
+              ),
+              label: Text(
+                active ? '409 Ativo (Próxima Ação)' : 'Testar Conflito 409',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: active ? AppTheme.warning : AppTheme.textSecondary,
+                  fontWeight: active ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(
+                  color: active ? AppTheme.warning : AppTheme.border,
+                  width: active ? 1.5 : 1,
+                ),
+                backgroundColor: active
+                    ? AppTheme.warningBg.withValues(alpha: 0.3)
+                    : Colors.transparent,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+            );
+          }),
+          const SizedBox(width: 12),
           // Botão de Salvar Cliente
           Obx(() {
             return ElevatedButton.icon(
@@ -119,7 +150,7 @@ class ClientFormPage extends GetView<ClientFormController> {
               label: Text(
                 controller.isSaving.value
                     ? 'Salvando...'
-                    : (controller.isEditing ? 'Salvar Alterações' : 'Salvar Cliente'),
+                    : (controller.isEditing.value ? 'Salvar Alterações' : 'Salvar Cliente'),
               ),
             );
           }),
@@ -184,7 +215,7 @@ class ClientFormPage extends GetView<ClientFormController> {
               return Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('3. Conferência (Split View)'),
+                  const Text('3. Conferência'),
                   if (docCount > 0) ...[
                     const SizedBox(width: 8),
                     Container(
@@ -471,9 +502,10 @@ class ClientFormPage extends GetView<ClientFormController> {
                   Obx(() {
                     return DocumentDropzone(
                       onFilesSelected: controller.addFilesToQueue,
-                      queue: controller.uploadQueue,
+                      queue: controller.uploadQueue.toList(),
                       onRemoveItem: controller.removeFromQueue,
                       onClearQueue: controller.clearQueue,
+                      onRemoveDuplicates: controller.removeDuplicatesFromQueue,
                       onStartUpload: controller.uploadAllDocuments,
                       isUploading: controller.isUploading.value,
                     );
@@ -506,7 +538,7 @@ class ClientFormPage extends GetView<ClientFormController> {
                                   controller.tabController.animateTo(2),
                               icon: const Icon(Icons.arrow_forward_rounded,
                                   size: 16),
-                              label: const Text('Ir para Conferência (Split View)'),
+                              label: const Text('Ir para Conferência'),
                               style: TextButton.styleFrom(
                                 foregroundColor: AppTheme.primary,
                               ),
@@ -590,6 +622,10 @@ class ClientFormPage extends GetView<ClientFormController> {
                   observationsController: controller.observationsController,
                   isProcessing: controller.isProcessingDocument.value,
                   processingProgress: controller.processingProgress.value,
+                  existingDuplicateTypeDoc:
+                      controller.getExistingDocumentWithSameType(
+                    controller.selectedDocumentType.value,
+                  ),
                   onProcessWithAi: controller.processSelectedDocument,
                   onApprove: controller.approveDocument,
                   onDelete: controller.deleteSelectedDocument,

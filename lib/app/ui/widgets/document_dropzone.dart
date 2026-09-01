@@ -1,5 +1,4 @@
 import 'package:desktop_drop/desktop_drop.dart';
-import 'package:dotted_border/dotted_border.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
@@ -12,6 +11,7 @@ class DocumentDropzone extends StatefulWidget {
   final List<DocumentUploadItem> queue;
   final Function(int) onRemoveItem;
   final VoidCallback onClearQueue;
+  final VoidCallback? onRemoveDuplicates;
   final VoidCallback onStartUpload;
   final bool isUploading;
 
@@ -21,6 +21,7 @@ class DocumentDropzone extends StatefulWidget {
     required this.queue,
     required this.onRemoveItem,
     required this.onClearQueue,
+    this.onRemoveDuplicates,
     required this.onStartUpload,
     required this.isUploading,
   });
@@ -51,11 +52,16 @@ class _DocumentDropzoneState extends State<DocumentDropzone> {
       }).toList();
 
       widget.onFilesSelected(items);
+      if (mounted) {
+        setState(() {});
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final hasDuplicates = widget.queue.any((item) => item.isDuplicate);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -75,115 +81,162 @@ class _DocumentDropzoneState extends State<DocumentDropzone> {
               );
             }
             widget.onFilesSelected(items);
+            if (mounted) {
+              setState(() {});
+            }
           },
           onDragEntered: (_) => setState(() => _isDragging = true),
           onDragExited: (_) => setState(() => _isDragging = false),
           child: InkWell(
             onTap: widget.isUploading ? null : _pickFiles,
-            borderRadius: BorderRadius.circular(16),
-            child: DottedBorder(
-              color: _isDragging ? AppTheme.accentLight : AppTheme.primary,
-              strokeWidth: 2,
-              dashPattern: const [8, 6],
-              borderType: BorderType.RRect,
-              radius: const Radius.circular(16),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
-                decoration: BoxDecoration(
-                  color: _isDragging
-                      ? AppTheme.accentSubtle
-                      : AppTheme.surfaceMuted.withValues(alpha: 0.6),
-                  borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(12),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
+              decoration: BoxDecoration(
+                color: _isDragging
+                    ? AppTheme.primary.withValues(alpha: 0.08)
+                    : AppTheme.surfaceMuted,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: _isDragging ? AppTheme.primary : AppTheme.border,
+                  width: _isDragging ? 2 : 1,
+                  style: BorderStyle.solid,
                 ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppTheme.accentSubtle,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: AppTheme.primary.withValues(alpha: 0.3),
-                        ),
-                      ),
-                      child: Icon(
-                        _isDragging
-                            ? Icons.file_download_outlined
-                            : Icons.cloud_upload_outlined,
-                        color: AppTheme.primary,
-                        size: 38,
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: _isDragging
+                          ? AppTheme.primary.withValues(alpha: 0.15)
+                          : AppTheme.surface,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: _isDragging
+                            ? AppTheme.primary
+                            : AppTheme.border,
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Arraste e solte seus documentos aqui',
+                    child: Icon(
+                      _isDragging
+                          ? Icons.file_download_outlined
+                          : Icons.cloud_upload_outlined,
+                      size: 36,
+                      color: _isDragging
+                          ? AppTheme.primary
+                          : AppTheme.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  RichText(
+                    textAlign: TextAlign.center,
+                    text: const TextSpan(
                       style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                        fontFamily: 'Inter',
                         color: AppTheme.textPrimary,
                       ),
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'ou clique para selecionar do computador (suporta seleção múltipla)',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: AppTheme.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppTheme.surface,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppTheme.border),
-                      ),
-                      child: const Text(
-                        'Formatos suportados: PDF, JPEG, PNG, DOCX (até 25MB)',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: AppTheme.textMuted,
+                      children: [
+                        TextSpan(
+                          text: 'Arraste e solte arquivos aqui ',
+                          style: TextStyle(fontWeight: FontWeight.w600),
                         ),
-                      ),
+                        TextSpan(
+                          text: 'ou ',
+                          style: TextStyle(color: AppTheme.textSecondary),
+                        ),
+                        TextSpan(
+                          text: 'clique para selecionar',
+                          style: TextStyle(
+                            color: AppTheme.primary,
+                            fontWeight: FontWeight.w600,
+                            decoration: TextDecoration.underline,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Suporta arquivos PDF, Imagens (JPEG, PNG) ou DOCX até 50 MB cada',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.textMuted,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
         ),
 
-        const SizedBox(height: 24),
-
-        // Lista da Fila de Upload
+        // Fila de Arquivos Selecionados
         if (widget.queue.isNotEmpty) ...[
+          const SizedBox(height: 24),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Fila de Upload (${widget.queue.length} ${widget.queue.length == 1 ? 'arquivo' : 'arquivos'})',
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.textPrimary,
-                ),
-              ),
-              if (!widget.isUploading)
-                TextButton.icon(
-                  onPressed: widget.onClearQueue,
-                  icon: const Icon(Icons.clear_all_rounded, size: 16),
-                  label: const Text('Limpar Fila'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: AppTheme.textSecondary,
+              Row(
+                children: [
+                  Text(
+                    'Fila de Upload (${widget.queue.length})',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textPrimary,
+                    ),
                   ),
-                ),
+                  if (hasDuplicates) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppTheme.warningBg,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Text(
+                        'Duplicata detectada',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.warning,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              Row(
+                children: [
+                  if (hasDuplicates &&
+                      widget.onRemoveDuplicates != null &&
+                      !widget.isUploading) ...[
+                    TextButton.icon(
+                      onPressed: widget.onRemoveDuplicates,
+                      icon: const Icon(Icons.delete_sweep_outlined,
+                          size: 16),
+                      label: const Text('Remover Duplicatas'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppTheme.warning,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  if (!widget.isUploading)
+                    TextButton.icon(
+                      onPressed: widget.onClearQueue,
+                      icon: const Icon(Icons.clear_all_rounded, size: 16),
+                      label: const Text('Limpar Fila'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppTheme.textSecondary,
+                      ),
+                    ),
+                ],
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -256,9 +309,13 @@ class _UploadQueueItemTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: AppTheme.surface,
+        color: item.isDuplicate
+            ? AppTheme.warningBg.withValues(alpha: 0.25)
+            : AppTheme.surface,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppTheme.border),
+        border: Border.all(
+          color: item.isDuplicate ? AppTheme.warning : AppTheme.border,
+        ),
       ),
       child: Row(
         children: [
@@ -275,23 +332,58 @@ class _UploadQueueItemTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  item.fileName,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textPrimary,
-                  ),
-                  overflow: TextOverflow.ellipsis,
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        item.fileName,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textPrimary,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (item.isDuplicate) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppTheme.warningBg,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'DUPLICADO',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: AppTheme.warning,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  item.fileSizeFormatted,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppTheme.textMuted,
+                if (item.isDuplicate && item.duplicateReason != null)
+                  Text(
+                    item.duplicateReason!,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppTheme.warning,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  )
+                else
+                  Text(
+                    item.fileSizeFormatted,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppTheme.textMuted,
+                    ),
                   ),
-                ),
               ],
             ),
           ),
@@ -318,23 +410,27 @@ class _UploadQueueItemTile extends StatelessWidget {
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
-            color: AppTheme.surfaceMuted,
+            color: item.isDuplicate
+                ? AppTheme.warningBg
+                : AppTheme.surfaceMuted,
             borderRadius: BorderRadius.circular(6),
           ),
-          child: const Text(
-            'Pronto',
+          child: Text(
+            item.isDuplicate ? 'Aviso' : 'Pronto',
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,
-              color: AppTheme.textSecondary,
+              color: item.isDuplicate
+                  ? AppTheme.warning
+                  : AppTheme.textSecondary,
             ),
           ),
         );
       case UploadItemStatus.uploading:
-        return Row(
+        return const Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(
+            SizedBox(
               width: 14,
               height: 14,
               child: CircularProgressIndicator(
@@ -342,8 +438,8 @@ class _UploadQueueItemTile extends StatelessWidget {
                 color: AppTheme.primary,
               ),
             ),
-            const SizedBox(width: 6),
-            const Text(
+            SizedBox(width: 6),
+            Text(
               'Enviando...',
               style: TextStyle(
                 fontSize: 11,

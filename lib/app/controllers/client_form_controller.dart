@@ -1,24 +1,27 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 
+import '../core/app_theme.dart';
 import '../core/routes/app_routes.dart';
 import '../domain/models/client_model.dart';
 import '../domain/models/document_model.dart';
 import '../repository/client_repository.dart';
-import '../repository/client_repository_impl.dart';
 import '../repository/document_repository.dart';
+import '../repository/mock_document_repository.dart';
 
 /// Controller do formulário de cliente com upload de documentos e conferência.
 ///
 /// Gerencia 3 abas:
 /// 1. Dados do cliente (cadastro/edição)
-/// 2. Upload de documentos (dropzone + file picker)
-/// 3. Split view de conferência (visualizador + dados extraídos)
+/// 2. Upload de documentos (dropzone + file picker + detecção de duplicatas)
+/// 3. Split view de conferência (visualizador + dados extraídos + controle de concorrência 409)
 class ClientFormController extends GetxController
     with GetSingleTickerProviderStateMixin {
   final ClientRepository clientRepository;
@@ -58,10 +61,13 @@ class ClientFormController extends GetxController
   /// ID do cliente sendo editado (null = cadastro novo)
   String? editingClientId;
 
-  /// Indica se o form está em modo de edição
-  bool get isEditing => editingClientId != null;
+  /// Se está no modo de edição (reativo)
+  final RxBool isEditing = false.obs;
 
-  // ─── Estado do Upload de Documentos ────────────────────────────────
+  /// Título com nome do cliente para o cabeçalho (reativo)
+  final RxString clientNameTitle = 'Novo Cadastro de Cliente'.obs;
+
+  // ─── Estado do Upload ──────────────────────────────────────────────
   final RxList<DocumentUploadItem> uploadQueue = <DocumentUploadItem>[].obs;
   final RxBool isUploading = false.obs;
 
@@ -72,36 +78,61 @@ class ClientFormController extends GetxController
   final RxBool isProcessingDocument = false.obs;
   final RxDouble processingProgress = 0.0.obs;
 
-  // Controllers para edição dos dados extraídos na conferência
+  // ─── Controladores da Split View ───────────────────────────────────
   final standardizedNameController = TextEditingController();
-  final documentTypeController = TextEditingController();
-  final RxString selectedDocumentType = 'Identidade (RG)'.obs;
+  final RxString selectedDocumentType = 'Outros'.obs;
   final documentDateController = TextEditingController();
   final observationsController = TextEditingController();
 
-  /// Título reativo para evitar leitura de controller durante pop transitions
-  final RxString clientNameTitle = ''.obs;
+  final _dateFormat = DateFormat('dd/MM/yyyy');
+
+  /// Flag reativa indicando se há conflito 409 simulado ativo
+  final RxBool isSimulateConflictActive = false.obs;
 
   @override
   void onInit() {
     super.onInit();
     tabController = TabController(length: 3, vsync: this);
 
-    // Verifica se há um client nos arguments (modo edição)
+    // 1. Tenta carregar através de Get.arguments
     final args = Get.arguments;
     if (args is ClientModel) {
       editingClientId = args.id;
+      isEditing.value = true;
+      nameController.text = args.name;
+      cpfController.text = args.cpf;
+      rgController.text = args.rg;
+      cityController.text = args.city;
       clientNameTitle.value = args.name;
-      _loadClientData(args);
       _loadDocuments(args.id);
+      if (Get.currentRoute == AppRoutes.clientDetails) {
+        tabController.index = 2; // Abre direto na Split View
+      }
+      return;
+    } else if (args is String && args.isNotEmpty && args != 'cadastrar') {
+      editingClientId = args;
+      isEditing.value = true;
+      _loadClient(args);
+      _loadDocuments(args);
+      if (Get.currentRoute == AppRoutes.clientDetails) {
+        tabController.index = 2;
+      }
+      return;
     }
 
-    if (Get.currentRoute == AppRoutes.clientDetails) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (tabController.length > 2) {
-          tabController.animateTo(2);
-        }
-      });
+    // 2. Tenta carregar através de Get.parameters['id'] (ex: URL /clients/form?id=1)
+    final param = Get.parameters['id'];
+    if (param != null && param.isNotEmpty && param != 'cadastrar') {
+      editingClientId = param;
+      isEditing.value = true;
+      _loadClient(param);
+      _loadDocuments(param);
+      if (Get.currentRoute == AppRoutes.clientDetails) {
+        tabController.index = 2;
+      }
+    } else {
+      isEditing.value = false;
+      clientNameTitle.value = 'Novo Cadastro de Cliente';
     }
   }
 
@@ -111,52 +142,92 @@ class ClientFormController extends GetxController
     super.onClose();
   }
 
+  /// Retorna para a listagem com segurança
+  void goBack() {
+    Get.back();
+  }
+
   // ═══════════════════════════════════════════════════════════════════
   //  SEÇÃO 1 — Dados do Cliente
   // ═══════════════════════════════════════════════════════════════════
 
-  /// Preenche os campos com dados do cliente (modo edição)
-  void _loadClientData(ClientModel client) {
-    nameController.text = client.name;
-    clientNameTitle.value = client.name;
-    cpfController.text = client.cpf;
-    rgController.text = client.rg;
-    cityController.text = client.city;
+  Future<void> _loadClient(String clientId) async {
+    isLoadingClient.value = true;
+    clientError.value = null;
+    try {
+      final client = await clientRepository.getClientById(clientId);
+      nameController.text = client.name;
+      cpfController.text = client.cpf;
+      rgController.text = client.rg;
+      cityController.text = client.city;
+      clientNameTitle.value = client.name;
+    } catch (e) {
+      clientError.value = e.toString();
+      _showErrorSnackbar('Erro ao carregar dados do cliente: $e');
+    } finally {
+      isLoadingClient.value = false;
+    }
   }
 
-  /// Salva (cria ou atualiza) o cliente
+  /// Salva os dados do cliente (criação ou edição)
   Future<void> saveClient() async {
-    if (!formKey.currentState!.validate()) return;
+    if (formKey.currentState != null) {
+      if (!formKey.currentState!.validate()) {
+        _showErrorSnackbar('Preencha os campos obrigatórios corretamente.');
+        return;
+      }
+    } else {
+      // Validação alternativa caso o formulário não esteja montado na tela atual
+      if (nameController.text.trim().isEmpty) {
+        _showErrorSnackbar('Preencha o nome do cliente na Aba 1 antes de continuar.');
+        tabController.animateTo(0);
+        return;
+      }
+    }
 
     isSaving.value = true;
     clientError.value = null;
 
+    final name = nameController.text.trim();
+    final cpf = cpfController.text.trim();
+    final rg = rgController.text.trim();
+    final city = cityController.text.trim();
+
     try {
-      final clientData = ClientModel(
-        id: editingClientId ?? '',
-        name: nameController.text.trim(),
-        cpf: cpfController.text.trim(),
-        rg: rgController.text.trim(),
-        city: cityController.text.trim(),
-        createdAt: DateTime.now(),
-      );
-
-      ClientModel savedClient;
-      if (isEditing) {
-        savedClient = await clientRepository.updateClient(clientData);
-        _showSuccessSnackbar('Cliente atualizado com sucesso.');
+      if (editingClientId == null) {
+        // Criar novo cliente
+        final newClient = await clientRepository.createClient(
+          ClientModel(
+            id: '',
+            name: name,
+            cpf: cpf,
+            rg: rg,
+            city: city,
+            totalDocuments: 0,
+            createdAt: DateTime.now(),
+          ),
+        );
+        editingClientId = newClient.id;
+        isEditing.value = true;
+        clientNameTitle.value = newClient.name;
+        _showSuccessSnackbar('Cliente cadastrado com sucesso!');
       } else {
-        savedClient = await clientRepository.createClient(clientData);
-        editingClientId = savedClient.id;
-        _showSuccessSnackbar('Cliente cadastrado com sucesso.');
-      }
-
-      // Se há arquivos na fila, faz upload automaticamente
-      if (uploadQueue.isNotEmpty) {
-        await _uploadAllDocuments();
+        // Atualizar cliente existente
+        final updated = ClientModel(
+          id: editingClientId!,
+          name: name,
+          cpf: cpf,
+          rg: rg,
+          city: city,
+          totalDocuments: documents.length,
+          createdAt: DateTime.now(),
+        );
+        await clientRepository.updateClient(updated);
+        clientNameTitle.value = name;
+        _showSuccessSnackbar('Dados do cliente atualizados com sucesso!');
       }
     } on ConflictException catch (e) {
-      _showConflictSnackbar(e.message);
+      _handleConflict(e);
     } catch (e) {
       clientError.value = e.toString();
       _showErrorSnackbar('Erro ao salvar cliente: $e');
@@ -166,22 +237,78 @@ class ClientFormController extends GetxController
   }
 
   // ═══════════════════════════════════════════════════════════════════
-  //  SEÇÃO 2 — Upload de Documentos
+  //  SEÇÃO 2 — Upload de Documentos e Detecção de Duplicatas
   // ═══════════════════════════════════════════════════════════════════
 
-  /// Adiciona arquivos à fila de upload
+  /// Calcula hash SHA-256 a partir dos bytes ou metadados
+  String calculateFileHash(Uint8List? bytes, String fileName, int size) {
+    if (bytes != null && bytes.isNotEmpty) {
+      return sha256.convert(bytes).toString();
+    }
+    return sha256.convert(utf8.encode('${fileName}_$size')).toString();
+  }
+
+  /// Adiciona arquivos à fila de upload com validação de duplicatas
   void addFilesToQueue(List<DocumentUploadItem> files) {
-    // Filtra tipos aceitos
     const allowedExtensions = ['pdf', 'jpg', 'jpeg', 'png', 'docx'];
+    final duplicates = <String>[];
+
     for (final file in files) {
       final ext = file.fileName.split('.').last.toLowerCase();
       if (allowedExtensions.contains(ext)) {
-        uploadQueue.add(file);
+        final hash = calculateFileHash(
+          file.bytes,
+          file.fileName,
+          file.fileSizeBytes,
+        );
+
+        // 1. Verifica se já existe nos documentos carregados do cliente
+        final existingDoc = documents.firstWhereOrNull(
+          (d) =>
+              (d.fileHash != null && d.fileHash == hash) ||
+              (d.originalName == file.fileName &&
+                  d.fileSizeBytes == file.fileSizeBytes),
+        );
+
+        // 2. Verifica se já está na fila
+        final inQueue = uploadQueue.firstWhereOrNull(
+          (item) =>
+              (item.fileHash != null && item.fileHash == hash) ||
+              (item.fileName == file.fileName &&
+                  item.fileSizeBytes == file.fileSizeBytes),
+        );
+
+        final isDuplicate = existingDoc != null || inQueue != null;
+        String? duplicateReason;
+        if (existingDoc != null) {
+          duplicateReason =
+              'Conteúdo idêntico a "${existingDoc.originalName}" já cadastrado para este cliente.';
+          duplicates.add(file.fileName);
+        } else if (inQueue != null) {
+          duplicateReason = 'Arquivo duplicado já presente na fila de envio.';
+          duplicates.add(file.fileName);
+        }
+
+        uploadQueue.add(
+          file.copyWith(
+            fileHash: hash,
+            isDuplicate: isDuplicate,
+            duplicateReason: duplicateReason,
+          ),
+        );
       } else {
         _showErrorSnackbar(
           'Arquivo "${file.fileName}" não aceito. Formatos: PDF, JPEG, PNG, DOCX.',
         );
       }
+    }
+
+    uploadQueue.refresh();
+
+    if (duplicates.isNotEmpty) {
+      _showWarningSnackbar(
+        'Atenção: ${duplicates.length} arquivo(s) duplicado(s) detectado(s) na fila.',
+      );
     }
   }
 
@@ -189,11 +316,27 @@ class ClientFormController extends GetxController
   void removeFromQueue(int index) {
     if (index >= 0 && index < uploadQueue.length) {
       uploadQueue.removeAt(index);
+      uploadQueue.refresh();
     }
   }
 
+  /// Remove todos os itens marcados como duplicados da fila
+  void removeDuplicatesFromQueue() {
+    final count = uploadQueue.where((item) => item.isDuplicate).length;
+    uploadQueue.removeWhere((item) => item.isDuplicate);
+    uploadQueue.refresh();
+    _showSuccessSnackbar('$count arquivo(s) duplicado(s) removido(s) da fila.');
+  }
+
   /// Limpa toda a fila de upload
-  void clearQueue() => uploadQueue.clear();
+  void clearQueue() {
+    uploadQueue.clear();
+    uploadQueue.refresh();
+  }
+
+  /// Verifica se há duplicatas na fila
+  bool get hasDuplicatesInQueue =>
+      uploadQueue.any((item) => item.isDuplicate);
 
   /// Envia todos os arquivos da fila
   Future<void> uploadAllDocuments() async {
@@ -222,6 +365,7 @@ class ClientFormController extends GetxController
           fileType: item.fileName.split('.').last.toLowerCase(),
           fileSizeBytes: item.fileSizeBytes,
           bytes: item.bytes,
+          fileHash: item.fileHash,
         );
 
         uploadQueue[i] = item.copyWith(status: UploadItemStatus.done);
@@ -245,13 +389,12 @@ class ClientFormController extends GetxController
       }
       documents.refresh();
       _showSuccessSnackbar('Upload concluído com sucesso!');
-      // Vai para a aba de conferência
       tabController.animateTo(2);
     }
   }
 
   // ═══════════════════════════════════════════════════════════════════
-  //  SEÇÃO 3 — Conferência / Split View
+  //  SEÇÃO 3 — Conferência / Split View & Concorrência
   // ═══════════════════════════════════════════════════════════════════
 
   /// Carrega a lista de documentos do cliente
@@ -260,8 +403,11 @@ class ClientFormController extends GetxController
     try {
       final docs = await documentRepository.getDocumentsByClientId(clientId);
       documents.assignAll(docs);
-      if (documents.isNotEmpty && selectedDocument.value == null) {
-        selectDocument(documents.first);
+      if (documents.isNotEmpty) {
+        if (selectedDocument.value == null ||
+            !documents.any((d) => d.id == selectedDocument.value?.id)) {
+          selectDocument(documents.first);
+        }
       }
     } catch (e) {
       _showErrorSnackbar('Erro ao carregar documentos: $e');
@@ -278,66 +424,64 @@ class ClientFormController extends GetxController
   }) {
     final cleanType = _sanitizeNamePart(docType);
 
-    // Primeiro nome do cliente (ou CLIENTE se vazio)
     final clientName = nameController.text.trim();
     final firstName = clientName.isNotEmpty
         ? _sanitizeNamePart(clientName.split(' ').first)
         : 'CLIENTE';
 
-    // Data de envio/criação formatada dd_MM_yyyy
     final dateStr = DateFormat('dd_MM_yyyy').format(doc.createdAt);
-
-    // Extensão do arquivo original
     final ext = doc.fileType.toLowerCase();
 
     return '${cleanType}_${firstName}_$dateStr.$ext';
   }
 
-  static String _sanitizeNamePart(String input) {
-    var result = input.toUpperCase();
-    const withDia = 'ÀÁÂÃÄÅàáâãäåÒÓÔÕÖØòóôõöøÈÉÊËèéêëÇçÌÍÎÏìíîïÙÚÛÜùúûüÿÑñ';
-    const withoutDia = 'AAAAAAaaaaaaOOOOOOooooooEEEEeeeeCcIIIIiiiiUUUUuuuuyNn';
+  String _sanitizeNamePart(String input) {
+    var text = input.toUpperCase().trim();
+    const withDia = 'ÀÁÂÃÄÅÒÓÔÕÖØÈÉÊËÇÌÍÎÏÙÚÛÜÑ';
+    const withoutDia = 'AAAAAAOOOOOOEEEECCIIIIUUUUN';
     for (int i = 0; i < withDia.length; i++) {
-      result = result.replaceAll(withDia[i], withoutDia[i]);
+      text = text.replaceAll(withDia[i], withoutDia[i]);
     }
-    result = result.replaceAll(RegExp(r'[^A-Z0-9]'), '_');
-    result = result.replaceAll(RegExp(r'_+'), '_');
-    return result.replaceAll(RegExp(r'^_|_$'), '');
+    text = text.replaceAll(RegExp(r'[^A-Z0-9]'), '_');
+    text = text.replaceAll(RegExp(r'_+'), '_');
+    return text.replaceAll(RegExp(r'^_|_$'), '');
   }
 
-  /// Seleciona um documento para conferência na split view
+  /// Seleciona um documento para conferência na Split View
   void selectDocument(DocumentModel doc) {
     selectedDocument.value = doc;
 
-    final extractedType = doc.extractedData?['document_type']?.toString();
-    final validDocType = (extractedType != null && documentTypes.contains(extractedType))
-        ? extractedType
-        : _inferMatchingType(doc);
+    final extType = doc.extractedData?['document_type']?.toString();
+    final validType = (extType != null && documentTypes.contains(extType))
+        ? extType
+        : 'Outros';
 
-    selectedDocumentType.value = validDocType;
-    documentTypeController.text = validDocType;
+    selectedDocumentType.value = validType;
 
-    // Nome padronizado: usa o existente ou gera com base no tipo + primeiro nome + data
-    standardizedNameController.text = doc.standardizedName ??
-        generateStandardizedName(docType: validDocType, doc: doc);
+    if (doc.standardizedName != null && doc.standardizedName!.isNotEmpty) {
+      standardizedNameController.text = doc.standardizedName!;
+    } else {
+      standardizedNameController.text = generateStandardizedName(
+        docType: validType,
+        doc: doc,
+      );
+    }
 
-    // Data formatada dd/MM/yyyy
     final rawDate = doc.extractedData?['document_date']?.toString();
     if (rawDate != null && rawDate.isNotEmpty) {
       documentDateController.text = rawDate;
     } else {
-      documentDateController.text = DateFormat('dd/MM/yyyy').format(doc.createdAt);
+      documentDateController.text = _dateFormat.format(doc.createdAt);
     }
 
     observationsController.text =
         doc.extractedData?['observations']?.toString() ?? '';
   }
 
-  /// Callback acionado quando o usuário altera a seleção do tipo de documento
+  /// Callback acionado quando o usuário altera o tipo de documento
   void onDocumentTypeChanged(String? newType) {
     if (newType == null) return;
     selectedDocumentType.value = newType;
-    documentTypeController.text = newType;
 
     final doc = selectedDocument.value;
     if (doc != null) {
@@ -348,38 +492,50 @@ class ClientFormController extends GetxController
     }
   }
 
-  String _inferMatchingType(DocumentModel doc) {
-    final lower = doc.originalName.toLowerCase();
-    if (lower.contains('cnh')) return 'CNH';
-    if (lower.contains('rg') || lower.contains('identidade') || lower.contains('cpf')) {
-      return 'Identidade (RG)';
-    }
-    if (lower.contains('residencia') || lower.contains('comprovante')) {
-      return 'Comprovante de Residência';
-    }
-    if (lower.contains('laudo') || lower.contains('pericial') || lower.contains('medico')) {
-      return 'Laudo Médico / Pericial';
-    }
-    if (lower.contains('procuracao')) return 'Procuração';
-    if (lower.contains('contrato') || lower.contains('estatuto')) return 'Contrato';
-    if (lower.contains('certidao')) return 'Certidão';
-    return 'Outros';
+  /// Verifica se outro documento deste cliente já possui este mesmo tipo cadastrado
+  DocumentModel? getExistingDocumentWithSameType(String docType) {
+    final current = selectedDocument.value;
+    if (current == null) return null;
+    return documents.firstWhereOrNull(
+      (d) =>
+          d.id != current.id &&
+          d.extractedData?['document_type'] == docType &&
+          docType != 'Outros',
+    );
   }
 
-  /// Inicia o processamento de IA do documento selecionado
+  /// Dispara a simulação de concorrência (HTTP 409) para teste
+  void toggleSimulateConflict() {
+    if (documentRepository is MockDocumentRepository) {
+      final mockRepo = documentRepository as MockDocumentRepository;
+      mockRepo.simulateConflictOnNextUpdate =
+          !mockRepo.simulateConflictOnNextUpdate;
+      isSimulateConflictActive.value = mockRepo.simulateConflictOnNextUpdate;
+
+      if (isSimulateConflictActive.value) {
+        _showWarningSnackbar(
+          'Simulação Ativada: A próxima aprovação ou salvamento disparará Conflito 409.',
+        );
+      } else {
+        _showSuccessSnackbar('Simulação de conflito desativada.');
+      }
+    }
+  }
+
+  /// Dispara o processamento por IA do documento selecionado
   Future<void> processSelectedDocument() async {
     final doc = selectedDocument.value;
     if (doc == null || doc.isReviewed) return;
 
     isProcessingDocument.value = true;
-    processingProgress.value = 0.0;
+    processingProgress.value = 0.05;
 
-    // Atualiza status para processing
-    _updateDocumentInList(doc.copyWith(status: DocumentStatus.processing));
+    _updateDocumentInList(
+      doc.copyWith(status: DocumentStatus.processing),
+    );
 
-    // Simula progresso gradual enquanto espera a resposta
     final random = Random();
-    final totalDuration = 4 + random.nextInt(4); // 4-7 segundos
+    final totalDuration = 4 + random.nextInt(3);
     final progressTimer = Timer.periodic(
       const Duration(milliseconds: 200),
       (timer) {
@@ -393,9 +549,10 @@ class ClientFormController extends GetxController
       progressTimer.cancel();
       processingProgress.value = 1.0;
 
-      // Define o tipo e gera o nome padronizado
-      final inferredType = processed.extractedData?['document_type']?.toString() ?? 'Outros';
-      final validDocType = documentTypes.contains(inferredType) ? inferredType : 'Outros';
+      final inferredType =
+          processed.extractedData?['document_type']?.toString() ?? 'Outros';
+      final validDocType =
+          documentTypes.contains(inferredType) ? inferredType : 'Outros';
       selectedDocumentType.value = validDocType;
 
       final finalStandardizedName = generateStandardizedName(
@@ -405,14 +562,16 @@ class ClientFormController extends GetxController
 
       final withStandardized = processed.copyWith(
         standardizedName: finalStandardizedName,
-        status: DocumentStatus.awaitingReview, // Status: Aguardando Conferência
+        status: DocumentStatus.awaitingReview,
       );
 
       await documentRepository.updateDocument(withStandardized);
       _updateDocumentInList(withStandardized);
       selectDocument(withStandardized);
 
-      _showSuccessSnackbar('Processamento de IA concluído. Documento aguardando conferência.');
+      _showSuccessSnackbar(
+        'Processamento de IA concluído. Documento aguardando conferência.',
+      );
     } catch (e) {
       progressTimer.cancel();
       _updateDocumentInList(
@@ -428,7 +587,7 @@ class ClientFormController extends GetxController
     }
   }
 
-  /// Aprova a conferência do documento (salva dados editados e muda status para Conferido)
+  /// Aprova a conferência do documento (muda status para Conferido com tratamento de 409)
   Future<void> approveDocument() async {
     final doc = selectedDocument.value;
     if (doc == null || doc.isReviewed) return;
@@ -436,7 +595,7 @@ class ClientFormController extends GetxController
     try {
       final updated = doc.copyWith(
         standardizedName: standardizedNameController.text.trim(),
-        status: DocumentStatus.reviewed, // Status: Conferido
+        status: DocumentStatus.reviewed,
         extractedData: {
           'document_type': selectedDocumentType.value,
           'document_date': documentDateController.text.trim(),
@@ -448,93 +607,202 @@ class ClientFormController extends GetxController
       _updateDocumentInList(saved);
       selectDocument(saved);
 
-      _showSuccessSnackbar('Documento conferido e aprovado com sucesso!');
+      _showSuccessSnackbar(
+        'Conferência aprovada com sucesso! Documento finalizado.',
+      );
     } on ConflictException catch (e) {
-      _showConflictSnackbar(e.message);
+      _handleConflict(e);
     } catch (e) {
-      _showErrorSnackbar('Erro ao salvar conferência: $e');
+      _showErrorSnackbar('Erro ao aprovar conferência: $e');
     }
   }
 
-  /// Deleta o documento selecionado
+  /// Trata visualmente e interativamente exceções de concorrência (HTTP 409)
+  void _handleConflict(ConflictException conflict) {
+    isSimulateConflictActive.value = false;
+
+    Get.dialog(
+      Dialog(
+        backgroundColor: AppTheme.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: AppTheme.border),
+        ),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 480),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppTheme.warningBg,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: AppTheme.warning.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: const Icon(
+                  Icons.sync_problem_rounded,
+                  color: AppTheme.warning,
+                  size: 36,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Conflito de Concorrência (HTTP 409)',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                conflict.message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppTheme.textSecondary,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Get.back(),
+                      child: const Text('Fechar'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        Get.back();
+                        if (editingClientId != null) {
+                          await _loadDocuments(editingClientId!);
+                          _showSuccessSnackbar(
+                            'Dados mais recentes sincronizados com o servidor!',
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.sync_rounded, size: 18),
+                      label: const Text('Recarregar Dados'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+      barrierDismissible: false,
+    );
+  }
+
+  /// Exclui o documento selecionado
   Future<void> deleteSelectedDocument() async {
     final doc = selectedDocument.value;
     if (doc == null) return;
 
-    try {
-      await documentRepository.deleteDocument(doc.id);
-      documents.removeWhere((d) => d.id == doc.id);
-      selectedDocument.value = null;
-      _showSuccessSnackbar('Documento excluído.');
-    } catch (e) {
-      _showErrorSnackbar('Erro ao excluir documento: $e');
+    final confirmed = await Get.dialog<bool>(
+      AlertDialog(
+        backgroundColor: AppTheme.surface,
+        title: const Text('Excluir Documento'),
+        content: Text('Deseja realmente excluir "${doc.originalName}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(result: false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Get.back(result: true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.danger),
+            child: const Text('Excluir'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await documentRepository.deleteDocument(doc.id);
+        documents.removeWhere((d) => d.id == doc.id);
+        if (documents.isNotEmpty) {
+          selectDocument(documents.first);
+        } else {
+          selectedDocument.value = null;
+        }
+        _showSuccessSnackbar('Documento excluído com sucesso.');
+      } catch (e) {
+        _showErrorSnackbar('Erro ao excluir documento: $e');
+      }
     }
   }
-
-  /// Volta para a listagem de clientes
-  void goBack() {
-    if (Get.key.currentState?.canPop() ?? false) {
-      Get.back();
-    } else {
-      Get.offAllNamed(AppRoutes.home);
-    }
-  }
-
-  // ─── Helpers internos ──────────────────────────────────────────────
 
   void _updateDocumentInList(DocumentModel updated) {
-    final index = documents.indexWhere((d) => d.id == updated.id);
-    if (index != -1) {
-      documents[index] = updated;
+    final idx = documents.indexWhere((d) => d.id == updated.id);
+    if (idx != -1) {
+      documents[idx] = updated;
       documents.refresh();
-    }
-    if (selectedDocument.value?.id == updated.id) {
-      selectedDocument.value = updated;
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  //  Snackbars
+  // ═══════════════════════════════════════════════════════════════════
+
   void _showSuccessSnackbar(String message) {
+    if (Get.context == null) return;
     Get.snackbar(
       'Sucesso',
       message,
       snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.green.shade800,
-      colorText: Colors.white,
+      backgroundColor: AppTheme.surfaceMuted,
+      colorText: AppTheme.textPrimary,
       margin: const EdgeInsets.all(16),
-      icon: const Icon(Icons.check_circle_outline, color: Colors.white),
+      icon: const Icon(Icons.check_circle_outline, color: AppTheme.success),
     );
   }
 
   void _showErrorSnackbar(String message) {
+    if (Get.context == null) return;
     Get.snackbar(
       'Erro',
       message,
       snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.red.shade800,
-      colorText: Colors.white,
+      backgroundColor: AppTheme.surfaceMuted,
+      colorText: AppTheme.textPrimary,
       margin: const EdgeInsets.all(16),
-      icon: const Icon(Icons.error_outline, color: Colors.white),
+      icon: const Icon(Icons.error_outline, color: AppTheme.danger),
     );
   }
 
-  void _showConflictSnackbar(String message) {
+  void _showWarningSnackbar(String message) {
+    if (Get.context == null) return;
     Get.snackbar(
-      'Conflito de Atendimento',
+      'Atenção',
       message,
       snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.amber.shade900,
-      colorText: Colors.white,
+      backgroundColor: AppTheme.surfaceMuted,
+      colorText: AppTheme.textPrimary,
       margin: const EdgeInsets.all(16),
-      icon: const Icon(Icons.warning_amber_rounded, color: Colors.white),
+      icon: const Icon(Icons.warning_amber_rounded, color: AppTheme.warning),
     );
   }
 }
 
-/// Item da fila de upload (representação local antes do envio)
+/// Item da fila de upload com suporte a hash e validação de duplicatas
 class DocumentUploadItem {
   final String fileName;
   final int fileSizeBytes;
   final Uint8List? bytes;
+  final String? fileHash;
+  final bool isDuplicate;
+  final String? duplicateReason;
   final UploadItemStatus status;
   final String? errorMessage;
 
@@ -542,6 +810,9 @@ class DocumentUploadItem {
     required this.fileName,
     required this.fileSizeBytes,
     this.bytes,
+    this.fileHash,
+    this.isDuplicate = false,
+    this.duplicateReason,
     this.status = UploadItemStatus.queued,
     this.errorMessage,
   });
@@ -550,6 +821,9 @@ class DocumentUploadItem {
     String? fileName,
     int? fileSizeBytes,
     Uint8List? bytes,
+    String? fileHash,
+    bool? isDuplicate,
+    String? duplicateReason,
     UploadItemStatus? status,
     String? errorMessage,
   }) {
@@ -557,6 +831,9 @@ class DocumentUploadItem {
       fileName: fileName ?? this.fileName,
       fileSizeBytes: fileSizeBytes ?? this.fileSizeBytes,
       bytes: bytes ?? this.bytes,
+      fileHash: fileHash ?? this.fileHash,
+      isDuplicate: isDuplicate ?? this.isDuplicate,
+      duplicateReason: duplicateReason ?? this.duplicateReason,
       status: status ?? this.status,
       errorMessage: errorMessage ?? this.errorMessage,
     );

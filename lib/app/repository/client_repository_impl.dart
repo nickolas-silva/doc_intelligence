@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import '../core/errors/app_exceptions.dart';
 import '../domain/models/client_model.dart';
 import '../domain/models/paginated_result.dart';
 import 'client_repository.dart';
@@ -121,10 +122,10 @@ class ClientRepositoryImpl implements ClientRepository {
 
   Exception _handleDioError(DioException error) {
     if (error.response?.statusCode == 409) {
-      return ConflictException('Este registro está em conflito de concorrência.');
+      return const ConflictException('Este registro está em conflito de concorrência.');
     }
     if (error.response?.statusCode == 404) {
-      return NotFoundException('Cliente não encontrado.');
+      return const NotFoundException('Cliente não encontrado.');
     }
     return Exception(
       error.response?.data?['message'] ??
@@ -132,20 +133,4 @@ class ClientRepositoryImpl implements ClientRepository {
           'Ocorreu um erro na comunicação com o servidor.',
     );
   }
-}
-
-class ConflictException implements Exception {
-  final String message;
-  ConflictException(this.message);
-
-  @override
-  String toString() => message;
-}
-
-class NotFoundException implements Exception {
-  final String message;
-  NotFoundException(this.message);
-
-  @override
-  String toString() => message;
 }

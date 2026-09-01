@@ -2,6 +2,8 @@ import 'dart:typed_data';
 
 import '../domain/models/document_model.dart';
 
+export '../core/errors/app_exceptions.dart';
+
 /// Contrato para o repositório de documentos.
 ///
 /// Não deve depender do pacote `get` conforme diretrizes de arquitetura.
@@ -16,6 +18,7 @@ abstract class DocumentRepository {
     Uint8List? bytes,
     String? previewUrl,
     String? assetPath,
+    String? fileHash,
   });
 
   Future<DocumentModel> processDocument(String documentId);

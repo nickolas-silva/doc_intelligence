@@ -18,6 +18,7 @@ class DocumentSplitView extends StatelessWidget {
   final TextEditingController observationsController;
   final bool isProcessing;
   final double processingProgress;
+  final DocumentModel? existingDuplicateTypeDoc;
   final VoidCallback onProcessWithAi;
   final VoidCallback onApprove;
   final VoidCallback onDelete;
@@ -32,6 +33,7 @@ class DocumentSplitView extends StatelessWidget {
     required this.observationsController,
     required this.isProcessing,
     required this.processingProgress,
+    this.existingDuplicateTypeDoc,
     required this.onProcessWithAi,
     required this.onApprove,
     required this.onDelete,
@@ -319,17 +321,35 @@ class DocumentSplitView extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Row(
+              Row(
                 children: [
-                  Icon(Icons.fact_check_outlined,
+                  const Icon(Icons.fact_check_outlined,
                       size: 20, color: AppTheme.primary),
-                  SizedBox(width: 8),
-                  Text(
+                  const SizedBox(width: 8),
+                  const Text(
                     'Conferência de Dados',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
                       color: AppTheme.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppTheme.surfaceMuted,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: AppTheme.border),
+                    ),
+                    child: Text(
+                      'v${document.version}',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontFamily: 'monospace',
+                        color: AppTheme.textMuted,
+                      ),
                     ),
                   ),
                 ],
@@ -416,6 +436,41 @@ class DocumentSplitView extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 18),
+          ],
+
+          // Banner de Alerta de Tipologia Duplicada
+          if (existingDuplicateTypeDoc != null) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppTheme.warningBg,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: AppTheme.warning.withValues(alpha: 0.4),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.warning_amber_rounded,
+                    color: AppTheme.warning,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Atenção: Este cliente já possui um(a) "$selectedDocumentType" cadastrado(a) (${existingDuplicateTypeDoc!.standardizedName ?? existingDuplicateTypeDoc!.originalName}).',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: AppTheme.warning,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
           ],
 
           // Campo: Nome Original do Arquivo (Read Only)

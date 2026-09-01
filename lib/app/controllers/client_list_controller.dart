@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../core/errors/app_exceptions.dart';
 import '../core/routes/app_routes.dart';
 import '../domain/models/client_model.dart';
 import '../repository/client_repository.dart';
-import '../repository/client_repository_impl.dart';
 
 /// Controlador responsável pelo gerenciamento de estado da listagem de clientes.
 class ClientListController extends GetxController {
@@ -121,17 +121,28 @@ class ClientListController extends GetxController {
 
   /// Ação para abrir os detalhes e documentos do cliente
   void openClientDetail(ClientModel client) {
-    Get.toNamed(AppRoutes.clientDetails, arguments: client);
+    Get.toNamed(
+      AppRoutes.clientDetails,
+      arguments: client,
+      parameters: {'id': client.id},
+    );
   }
 
   /// Ação para cadastrar novo cliente
   void openNewClientForm() {
-    Get.toNamed(AppRoutes.clientForm);
+    Get.toNamed(
+      AppRoutes.clientForm,
+      parameters: {'id': 'cadastrar'},
+    );
   }
 
   /// Ação para editar dados do cliente
   void editClient(ClientModel client) {
-    Get.toNamed(AppRoutes.clientForm, arguments: client);
+    Get.toNamed(
+      AppRoutes.clientForm,
+      arguments: client,
+      parameters: {'id': client.id},
+    );
   }
 
   /// Confirmação e exclusão de cliente

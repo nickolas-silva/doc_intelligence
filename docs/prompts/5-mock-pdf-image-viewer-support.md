@@ -26,3 +26,6 @@ Implementação do suporte completo à renderização e visualização de PDFs e
 ### 🧪 Validações Realizadas
 • `flutter analyze`: 0 issues / avisos.
 • `flutter test`: 100% de sucesso.
+
+# COMENTARIOS DO DESENVOLVEDOR
+- Adicionar arquivo mockado nos assets e link de imagem ficticia para serem carregados por padrão em qualquer arquivo de imagem ou pdf para visualização semelhante da aplicação real
