@@ -48,7 +48,6 @@ class ClientFormController extends GetxController
   late TabController tabController;
 
   // ─── Estado do Formulário de Cliente ───────────────────────────────
-  final formKey = GlobalKey<FormState>();
   final nameController = TextEditingController();
   final cpfController = TextEditingController();
   final rgController = TextEditingController();
@@ -169,21 +168,38 @@ class ClientFormController extends GetxController
     }
   }
 
+  /// Validação síncrona dos campos obrigatórios do cliente
+  bool validateClientForm() {
+    final name = nameController.text.trim();
+    if (name.isEmpty) {
+      _showErrorSnackbar('O Nome Completo é obrigatório.');
+      tabController.animateTo(0);
+      return false;
+    }
+    final cpf = cpfController.text.trim();
+    if (cpf.isEmpty) {
+      _showErrorSnackbar('O CPF é obrigatório.');
+      tabController.animateTo(0);
+      return false;
+    }
+    final rg = rgController.text.trim();
+    if (rg.isEmpty) {
+      _showErrorSnackbar('O RG é obrigatório.');
+      tabController.animateTo(0);
+      return false;
+    }
+    final city = cityController.text.trim();
+    if (city.isEmpty) {
+      _showErrorSnackbar('A Cidade / UF é obrigatória.');
+      tabController.animateTo(0);
+      return false;
+    }
+    return true;
+  }
+
   /// Salva os dados do cliente (criação ou edição)
   Future<void> saveClient() async {
-    if (formKey.currentState != null) {
-      if (!formKey.currentState!.validate()) {
-        _showErrorSnackbar('Preencha os campos obrigatórios corretamente.');
-        return;
-      }
-    } else {
-      // Validação alternativa caso o formulário não esteja montado na tela atual
-      if (nameController.text.trim().isEmpty) {
-        _showErrorSnackbar('Preencha o nome do cliente na Aba 1 antes de continuar.');
-        tabController.animateTo(0);
-        return;
-      }
-    }
+    if (!validateClientForm()) return;
 
     isSaving.value = true;
     clientError.value = null;

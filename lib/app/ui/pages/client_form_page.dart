@@ -258,12 +258,10 @@ class ClientFormPage extends GetView<ClientFormController> {
           child: Card(
             child: Padding(
               padding: const EdgeInsets.all(28),
-              child: Form(
-                key: controller.formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
                       children: [
                         Icon(Icons.person_outline_rounded,
                             color: AppTheme.primary, size: 22),
@@ -436,7 +434,7 @@ class ClientFormPage extends GetView<ClientFormController> {
                         const SizedBox(width: 12),
                         ElevatedButton.icon(
                           onPressed: () {
-                            if (controller.formKey.currentState!.validate()) {
+                            if (controller.validateClientForm()) {
                               controller.tabController.animateTo(1);
                             }
                           },
@@ -451,7 +449,6 @@ class ClientFormPage extends GetView<ClientFormController> {
             ),
           ),
         ),
-      ),
     );
   }
 
