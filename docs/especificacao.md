@@ -30,9 +30,9 @@ Uma das decisões estruturais do projeto foi modelar a entidade **Cliente (`Clie
    - O atendente e os advogados conseguem consultar o dossiê documental completo de uma pessoa em um único lugar (quantos documentos foram enviados, quantos já foram conferidos e quais ainda estão pendentes).
    - Facilita a auditoria de completude documental para petições iniciais (ex.: verificar se o cliente já enviou RG, comprovante de residência e procuração).
 
-3. **Validação Inteligente de Duplicatas e Tipologia no Escopo do Cliente:**
-   - Evita falsos positivos globais: um documento de rescisão pode ter estrutura parecida com outro, mas pertencer a clientes diferentes.
-   - Permite alertar conflitos no escopo correto: *"Atenção: Este cliente já possui uma Procuração cadastrada"*, sem travar o envio de procurações de outros clientes.
+3. **Validação Inteligente de Duplicatas (Hash Criptográfico) no Escopo do Cliente:**
+   - Evita falsos positivos globais: um documento de rescisão pode ter estrutura parecida com outro, mas pertencer a clientes diferentes. O hash binário SHA-256 garante precisão matemática.
+   - **Suporte a Múltiplos Anexos da Mesma Tipologia:** Clientes podem legitimamente anexar múltiplos contratos, comprovantes de residência de meses diferentes ou certidões distintas. O sistema permite coexistência de vários documentos do mesmo tipo, focando a restrição de duplicidade no conteúdo binário real do arquivo.
 
 4. **Integração Natural com Sistemas Internos do Escritório (Item 5 do Desafio):**
    - Conforme o requisito de integração interna, os ERPs jurídicos e sistemas de processo eletrônico indexam peças por **Parte / Cliente / Processo**.
@@ -66,7 +66,7 @@ Abaixo detalhamos como a implementação responde diretamente a cada um dos fato
   - **Impressão Digital Criptográfica (Hash SHA-256):** Ao selecionar arquivos, o sistema calcula o hash binário (`Uint8List`) de cada item.
   - **Detecção na Fila de Upload:** Arquivos idênticos já enviados para o cliente ou repetidos no mesmo lote recebem o badge visual **`DUPLICADO`** com destaque âmbar.
   - **Ação Rápida:** Botão *"Remover Duplicatas"* permite expurgar arquivos redundantes com 1 clique antes do envio.
-  - **Alerta de Tipologia Repetida:** Na Split View, a seleção de uma tipologia documental já existente para o mesmo cliente exibe um banner de atenção preventiva.
+  - **Flexibilidade de Tipologia:** Permite múltiplos anexos de um mesmo tipo (ex.: 3 contratos diferentes), validando apenas duplicatas com idêntico conteúdo ou nome/tamanho.
 
 ### d) Dados Pessoais e Pessoais Sensíveis (LGPD)
 * **Como foi resolvido na Interface:**
@@ -127,6 +127,5 @@ O projeto conta com uma suíte de testes em `test/` validando os fluxos crítico
   - Cálculo de hash SHA-256.
   - Identificação e bloqueio de arquivos duplicados na fila.
   - Lançamento e captura de `ConflictException` (HTTP 409).
-  - Detecção de conflito de tipologia repetida para o mesmo cliente.
 * **`test/mock_document_generator_test.dart`:** Geração de PDFs vetoriais sem erros de codificação de fontes.
 * **`test/widget_test.dart`:** Teste de fumaça da interface e renderização inicial.

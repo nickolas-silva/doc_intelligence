@@ -68,17 +68,16 @@ void main() {
       );
     });
 
-    test('Detecta tipologia jurídica já cadastrada para o mesmo cliente', () async {
+    test('Permite múltiplos documentos com a mesma tipologia para o mesmo cliente', () async {
       final docs = await docRepo.getDocumentsByClientId('1');
       controller.documents.assignAll(docs);
       controller.selectDocument(docs.first); // doc-1 é 'Contrato'
 
-      // Se tentar selecionar outro documento e mudar para 'Contrato', detecta duplicata de tipo
-      controller.selectedDocument.value = docs[1]; // doc-2 é 'Procuração'
-      final hasDuplicateContract = controller.getExistingDocumentWithSameType('Contrato');
+      // Seleciona outro documento e define como 'Contrato' sem restrição
+      controller.selectedDocument.value = docs[1];
+      controller.onDocumentTypeChanged('Contrato');
 
-      expect(hasDuplicateContract, isNotNull);
-      expect(hasDuplicateContract?.id, equals('doc-1'));
+      expect(controller.selectedDocumentType.value, equals('Contrato'));
     });
   });
 }

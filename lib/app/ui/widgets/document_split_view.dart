@@ -18,7 +18,6 @@ class DocumentSplitView extends StatelessWidget {
   final TextEditingController observationsController;
   final bool isProcessing;
   final double processingProgress;
-  final DocumentModel? existingDuplicateTypeDoc;
   final VoidCallback onProcessWithAi;
   final VoidCallback onApprove;
   final VoidCallback onDelete;
@@ -33,7 +32,6 @@ class DocumentSplitView extends StatelessWidget {
     required this.observationsController,
     required this.isProcessing,
     required this.processingProgress,
-    this.existingDuplicateTypeDoc,
     required this.onProcessWithAi,
     required this.onApprove,
     required this.onDelete,
@@ -436,41 +434,6 @@ class DocumentSplitView extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 18),
-          ],
-
-          // Banner de Alerta de Tipologia Duplicada
-          if (existingDuplicateTypeDoc != null) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: AppTheme.warningBg,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: AppTheme.warning.withValues(alpha: 0.4),
-                ),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.warning_amber_rounded,
-                    color: AppTheme.warning,
-                    size: 18,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Atenção: Este cliente já possui um(a) "$selectedDocumentType" cadastrado(a) (${existingDuplicateTypeDoc!.standardizedName ?? existingDuplicateTypeDoc!.originalName}).',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: AppTheme.warning,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
           ],
 
           // Campo: Nome Original do Arquivo (Read Only)

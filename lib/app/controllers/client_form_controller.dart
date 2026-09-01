@@ -492,18 +492,6 @@ class ClientFormController extends GetxController
     }
   }
 
-  /// Verifica se outro documento deste cliente já possui este mesmo tipo cadastrado
-  DocumentModel? getExistingDocumentWithSameType(String docType) {
-    final current = selectedDocument.value;
-    if (current == null) return null;
-    return documents.firstWhereOrNull(
-      (d) =>
-          d.id != current.id &&
-          d.extractedData?['document_type'] == docType &&
-          docType != 'Outros',
-    );
-  }
-
   /// Dispara a simulação de concorrência (HTTP 409) para teste
   void toggleSimulateConflict() {
     if (documentRepository is MockDocumentRepository) {

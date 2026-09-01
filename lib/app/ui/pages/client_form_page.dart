@@ -622,10 +622,6 @@ class ClientFormPage extends GetView<ClientFormController> {
                   observationsController: controller.observationsController,
                   isProcessing: controller.isProcessingDocument.value,
                   processingProgress: controller.processingProgress.value,
-                  existingDuplicateTypeDoc:
-                      controller.getExistingDocumentWithSameType(
-                    controller.selectedDocumentType.value,
-                  ),
                   onProcessWithAi: controller.processSelectedDocument,
                   onApprove: controller.approveDocument,
                   onDelete: controller.deleteSelectedDocument,
