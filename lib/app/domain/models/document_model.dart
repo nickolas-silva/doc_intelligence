@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 enum DocumentStatus {
   pending,
   uploading,
@@ -33,6 +35,8 @@ class DocumentModel {
   final int fileSizeBytes;
   final DocumentStatus status;
   final String? previewUrl;
+  final String? assetPath;
+  final Uint8List? bytes;
   final DateTime createdAt;
   final Map<String, dynamic>? extractedData;
   final String? errorMessage;
@@ -46,6 +50,8 @@ class DocumentModel {
     required this.fileSizeBytes,
     this.status = DocumentStatus.pending,
     this.previewUrl,
+    this.assetPath,
+    this.bytes,
     required this.createdAt,
     this.extractedData,
     this.errorMessage,
@@ -77,6 +83,7 @@ class DocumentModel {
           : int.tryParse(json['file_size_bytes']?.toString() ?? '0') ?? 0,
       status: _parseStatus(json['status']?.toString()),
       previewUrl: json['preview_url']?.toString(),
+      assetPath: json['asset_path']?.toString(),
       createdAt: json['created_at'] != null
           ? DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now()
           : DateTime.now(),
@@ -118,6 +125,7 @@ class DocumentModel {
       'file_size_bytes': fileSizeBytes,
       'status': status.name,
       if (previewUrl != null) 'preview_url': previewUrl,
+      if (assetPath != null) 'asset_path': assetPath,
       'created_at': createdAt.toIso8601String(),
       if (extractedData != null) 'extracted_data': extractedData,
       if (errorMessage != null) 'error_message': errorMessage,
@@ -133,6 +141,8 @@ class DocumentModel {
     int? fileSizeBytes,
     DocumentStatus? status,
     String? previewUrl,
+    String? assetPath,
+    Uint8List? bytes,
     DateTime? createdAt,
     Map<String, dynamic>? extractedData,
     String? errorMessage,
@@ -146,6 +156,8 @@ class DocumentModel {
       fileSizeBytes: fileSizeBytes ?? this.fileSizeBytes,
       status: status ?? this.status,
       previewUrl: previewUrl ?? this.previewUrl,
+      assetPath: assetPath ?? this.assetPath,
+      bytes: bytes ?? this.bytes,
       createdAt: createdAt ?? this.createdAt,
       extractedData: extractedData ?? this.extractedData,
       errorMessage: errorMessage ?? this.errorMessage,

@@ -85,7 +85,6 @@ class DocumentSplitView extends StatelessWidget {
   /// Painel Esquerdo: Renderização de PDF ou Imagem
   Widget _buildDocumentViewerPanel() {
     final isPdf = document.fileType.toLowerCase() == 'pdf';
-    final previewUrl = document.previewUrl;
 
     return Container(
       decoration: BoxDecoration(
@@ -146,56 +145,158 @@ class DocumentSplitView extends StatelessWidget {
 
           // Área de Exibição do Documento
           Expanded(
-            child: isPdf
-                ? (previewUrl != null
-                    ? SfPdfViewer.network(
-                        previewUrl,
-                        canShowScrollHead: true,
-                        canShowScrollStatus: true,
-                      )
-                    : const Center(
-                        child: Text(
-                          'PDF indisponível para pré-visualização',
-                          style: TextStyle(color: AppTheme.textMuted),
-                        ),
-                      ))
-                : (previewUrl != null
-                    ? Image.network(
-                        previewUrl,
-                        fit: BoxFit.contain,
-                        loadingBuilder: (context, child, progress) {
-                          if (progress == null) return child;
-                          return const Center(
-                            child: CircularProgressIndicator(
-                              color: AppTheme.primary,
-                            ),
-                          );
-                        },
-                        errorBuilder: (context, error, stackTrace) {
-                          return const Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.broken_image_outlined,
-                                    size: 40, color: AppTheme.textMuted),
-                                SizedBox(height: 8),
-                                Text(
-                                  'Imagem não carregada',
-                                  style: TextStyle(color: AppTheme.textMuted),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      )
-                    : const Center(
-                        child: Text(
-                          'Imagem indisponível',
-                          style: TextStyle(color: AppTheme.textMuted),
-                        ),
-                      )),
+            child: _buildDocumentViewerContent(isPdf),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Conteúdo do visualizador com suporte a Assets locais (PDF) e URL de imagem
+  Widget _buildDocumentViewerContent(bool isPdf) {
+    if (isPdf) {
+      // Se tem bytes de um PDF recém-enviado pelo usuário, usa os bytes; caso contrário, abre o asset de mock
+      if (document.bytes != null && document.bytes!.isNotEmpty) {
+        return SfPdfViewer.memory(
+          document.bytes!,
+          key: ValueKey('pdf_mem_${document.id}'),
+          canShowScrollHead: true,
+          canShowScrollStatus: true,
+          onDocumentLoadFailed: (details) {
+            debugPrint('Erro ao carregar PDF (memória): ${details.error} - ${details.description}');
+          },
+        );
+      }
+
+      // Visualização padrão do PDF de mock em assets/mock/desafio.pdf
+      return SfPdfViewer.asset(
+        document.assetPath ?? 'assets/mock/desafio.pdf',
+        key: ValueKey('pdf_asset_${document.id}'),
+        canShowScrollHead: true,
+        canShowScrollStatus: true,
+        onDocumentLoadFailed: (details) {
+          debugPrint('Erro ao carregar PDF (asset): ${details.error} - ${details.description}');
+        },
+      );
+    } else {
+      // Se tem bytes de uma imagem recém-enviada pelo usuário, usa os bytes
+      if (document.bytes != null && document.bytes!.isNotEmpty) {
+        return InteractiveViewer(
+          minScale: 0.5,
+          maxScale: 3.0,
+          child: Center(
+            child: Image.memory(
+              document.bytes!,
+              fit: BoxFit.contain,
+            ),
+          ),
+        );
+      }
+
+      // Imagem padrão de exemplo conforme solicitado
+      final imageUrl = document.previewUrl ??
+          'https://dummyimage.com/600x400/000/fff.png&text=Exemplo+de+documento';
+
+      return InteractiveViewer(
+        minScale: 0.5,
+        maxScale: 3.0,
+        child: Center(
+          child: Image.network(
+            imageUrl,
+            fit: BoxFit.contain,
+            loadingBuilder: (context, child, progress) {
+              if (progress == null) return child;
+              return const Center(
+                child: CircularProgressIndicator(color: AppTheme.primary),
+              );
+            },
+            errorBuilder: (context, error, stackTrace) {
+              return _buildFallbackDocPreview();
+            },
+          ),
+        ),
+      );
+    }
+  }
+
+  /// Cartão de demonstração visual estilizado quando o binário bruto não estiver disponível
+  Widget _buildFallbackDocPreview() {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Container(
+          width: 440,
+          padding: const EdgeInsets.all(28),
+          decoration: BoxDecoration(
+            color: AppTheme.surfaceMuted,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppTheme.border),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppTheme.accentSubtle,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: AppTheme.primary.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: const Icon(
+                  Icons.verified_outlined,
+                  size: 40,
+                  color: AppTheme.primary,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                document.originalName,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Documento registrado • ${document.fileSizeFormatted}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppTheme.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Divider(color: AppTheme.border),
+              const SizedBox(height: 14),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Formato:', style: TextStyle(fontSize: 12, color: AppTheme.textMuted)),
+                  Text(document.fileType.toUpperCase(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppTheme.textPrimary)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Status:', style: TextStyle(fontSize: 12, color: AppTheme.textMuted)),
+                  Text(document.status.label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppTheme.primary)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Autenticação:', style: TextStyle(fontSize: 12, color: AppTheme.textMuted)),
+                  Text('#DOC-${document.id.hashCode.abs()}', style: const TextStyle(fontSize: 12, fontFamily: 'monospace', color: AppTheme.textSecondary)),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -518,14 +619,6 @@ class DocumentSplitView extends StatelessWidget {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  IconButton(
-                    onPressed: isProcessing ? null : onDelete,
-                    icon: const Icon(Icons.delete_outline_rounded, size: 18),
-                    color: AppTheme.danger,
-                    hoverColor: AppTheme.dangerBg,
-                    tooltip: 'Excluir documento',
-                  ),
-                  const SizedBox(width: 8),
                   Tooltip(
                     message: isReviewed
                         ? 'Documento já conferido e aprovado'
@@ -548,6 +641,14 @@ class DocumentSplitView extends StatelessWidget {
                             )
                           : null,
                     ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: isProcessing ? null : onDelete,
+                    icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                    color: AppTheme.danger,
+                    hoverColor: AppTheme.dangerBg,
+                    tooltip: 'Excluir documento',
                   ),
                 ],
               ),

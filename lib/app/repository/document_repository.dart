@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import '../domain/models/document_model.dart';
 
 /// Contrato para o repositório de documentos.
@@ -11,7 +13,9 @@ abstract class DocumentRepository {
     required String fileName,
     required String fileType,
     required int fileSizeBytes,
+    Uint8List? bytes,
     String? previewUrl,
+    String? assetPath,
   });
 
   Future<DocumentModel> processDocument(String documentId);

@@ -478,6 +478,62 @@ class ClientFormPage extends GetView<ClientFormController> {
                       isUploading: controller.isUploading.value,
                     );
                   }),
+
+                  // Lista de Documentos Já Carregados (Exibida imediatamente após o upload)
+                  Obx(() {
+                    if (controller.documents.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 32),
+                        const Divider(height: 1, color: AppTheme.border),
+                        const SizedBox(height: 24),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Documentos Carregados (${controller.documents.length})',
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: AppTheme.textPrimary,
+                              ),
+                            ),
+                            TextButton.icon(
+                              onPressed: () =>
+                                  controller.tabController.animateTo(2),
+                              icon: const Icon(Icons.arrow_forward_rounded,
+                                  size: 16),
+                              label: const Text('Ir para Conferência (Split View)'),
+                              style: TextButton.styleFrom(
+                                foregroundColor: AppTheme.primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        ListView.separated(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: controller.documents.length,
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: 8),
+                          itemBuilder: (context, index) {
+                            final doc = controller.documents[index];
+                            return _UploadedDocumentRow(
+                              document: doc,
+                              onTap: () {
+                                controller.selectDocument(doc);
+                                controller.tabController.animateTo(2);
+                              },
+                            );
+                          },
+                        ),
+                      ],
+                    );
+                  }),
                 ],
               ),
             ),
@@ -503,16 +559,13 @@ class ClientFormPage extends GetView<ClientFormController> {
         return _buildEmptyDocumentsState();
       }
 
-      final currentSelected = controller.selectedDocument.value ??
-          controller.documents.first;
-
-      // Se nenhum estava selecionado, inicializa com o primeiro
       if (controller.selectedDocument.value == null &&
           controller.documents.isNotEmpty) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          controller.selectDocument(controller.documents.first);
-        });
+        controller.selectDocument(controller.documents.first);
       }
+
+      final currentSelected = controller.selectedDocument.value ??
+          controller.documents.first;
 
       return SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
@@ -748,6 +801,124 @@ class _CpfInputFormatter extends TextInputFormatter {
     return TextEditingValue(
       text: formatted,
       selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+}
+
+class _UploadedDocumentRow extends StatelessWidget {
+  final DocumentModel document;
+  final VoidCallback onTap;
+
+  const _UploadedDocumentRow({
+    required this.document,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isPdf = document.fileType.toLowerCase() == 'pdf';
+    final iconData =
+        isPdf ? Icons.picture_as_pdf_outlined : Icons.image_outlined;
+    final iconColor = isPdf ? const Color(0xFFF87171) : AppTheme.info;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppTheme.surface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppTheme.border),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: iconColor.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(iconData, color: iconColor, size: 20),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    document.standardizedName ?? document.originalName,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textPrimary,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${document.fileSizeFormatted} • ${document.fileType.toUpperCase()}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppTheme.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            _buildStatusBadge(document.status),
+            const SizedBox(width: 12),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: AppTheme.textMuted,
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusBadge(DocumentStatus status) {
+    Color bg;
+    Color fg;
+    switch (status) {
+      case DocumentStatus.reviewed:
+        bg = AppTheme.successBg;
+        fg = AppTheme.success;
+        break;
+      case DocumentStatus.awaitingReview:
+        bg = AppTheme.warningBg;
+        fg = AppTheme.warning;
+        break;
+      case DocumentStatus.processing:
+        bg = AppTheme.accentSubtle;
+        fg = AppTheme.primary;
+        break;
+      case DocumentStatus.error:
+        bg = AppTheme.dangerBg;
+        fg = AppTheme.danger;
+        break;
+      default:
+        bg = AppTheme.surfaceMuted;
+        fg = AppTheme.textSecondary;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        status.label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: fg,
+        ),
+      ),
     );
   }
 }

@@ -35,6 +35,7 @@ class _DocumentDropzoneState extends State<DocumentDropzone> {
   Future<void> _pickFiles() async {
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
+      withData: true,
       type: FileType.custom,
       allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'docx'],
     );
@@ -44,6 +45,7 @@ class _DocumentDropzoneState extends State<DocumentDropzone> {
         return DocumentUploadItem(
           fileName: file.name,
           fileSizeBytes: file.size,
+          bytes: file.bytes,
           status: UploadItemStatus.queued,
         );
       }).toList();
@@ -59,14 +61,19 @@ class _DocumentDropzoneState extends State<DocumentDropzone> {
       children: [
         // Dropzone interativo
         DropTarget(
-          onDragDone: (detail) {
-            final items = detail.files.map((file) {
-              return DocumentUploadItem(
-                fileName: file.name,
-                fileSizeBytes: 1024 * 300, // estimativa para web/drop
-                status: UploadItemStatus.queued,
+          onDragDone: (detail) async {
+            final items = <DocumentUploadItem>[];
+            for (final file in detail.files) {
+              final bytes = await file.readAsBytes();
+              items.add(
+                DocumentUploadItem(
+                  fileName: file.name,
+                  fileSizeBytes: bytes.length,
+                  bytes: bytes,
+                  status: UploadItemStatus.queued,
+                ),
               );
-            }).toList();
+            }
             widget.onFilesSelected(items);
           },
           onDragEntered: (_) => setState(() => _isDragging = true),

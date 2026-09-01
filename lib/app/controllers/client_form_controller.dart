@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -220,6 +221,7 @@ class ClientFormController extends GetxController
           fileName: item.fileName,
           fileType: item.fileName.split('.').last.toLowerCase(),
           fileSizeBytes: item.fileSizeBytes,
+          bytes: item.bytes,
         );
 
         uploadQueue[i] = item.copyWith(status: UploadItemStatus.done);
@@ -237,7 +239,12 @@ class ClientFormController extends GetxController
     isUploading.value = false;
 
     if (documents.isNotEmpty) {
-      _showSuccessSnackbar('Upload concluído. Documentos prontos para conferência.');
+      if (selectedDocument.value == null ||
+          !documents.any((d) => d.id == selectedDocument.value?.id)) {
+        selectDocument(documents.first);
+      }
+      documents.refresh();
+      _showSuccessSnackbar('Upload concluído com sucesso!');
       // Vai para a aba de conferência
       tabController.animateTo(2);
     }
@@ -253,6 +260,9 @@ class ClientFormController extends GetxController
     try {
       final docs = await documentRepository.getDocumentsByClientId(clientId);
       documents.assignAll(docs);
+      if (documents.isNotEmpty && selectedDocument.value == null) {
+        selectDocument(documents.first);
+      }
     } catch (e) {
       _showErrorSnackbar('Erro ao carregar documentos: $e');
     } finally {
@@ -524,12 +534,14 @@ class ClientFormController extends GetxController
 class DocumentUploadItem {
   final String fileName;
   final int fileSizeBytes;
+  final Uint8List? bytes;
   final UploadItemStatus status;
   final String? errorMessage;
 
   const DocumentUploadItem({
     required this.fileName,
     required this.fileSizeBytes,
+    this.bytes,
     this.status = UploadItemStatus.queued,
     this.errorMessage,
   });
@@ -537,12 +549,14 @@ class DocumentUploadItem {
   DocumentUploadItem copyWith({
     String? fileName,
     int? fileSizeBytes,
+    Uint8List? bytes,
     UploadItemStatus? status,
     String? errorMessage,
   }) {
     return DocumentUploadItem(
       fileName: fileName ?? this.fileName,
       fileSizeBytes: fileSizeBytes ?? this.fileSizeBytes,
+      bytes: bytes ?? this.bytes,
       status: status ?? this.status,
       errorMessage: errorMessage ?? this.errorMessage,
     );
