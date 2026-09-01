@@ -4,6 +4,10 @@ Este documento descreve a especificação funcional e arquitetural do **DOC Inte
 
 ---
 
+## Escolha da Stack (Flutter + Repository Mockado)
+
+O framework escolhido foi o Flutter (versão do SDK 3.47.2) devido à sua facilidade no gerenciamento e manipulação de arquivos, como PDFs e imagens. Além disso, por ser uma tecnologia multiplataforma, proporciona um excelente reaproveitamento de código na criação de aplicações para os mais diversos sistemas operacionais.
+
 ## 1. Visão Geral do Produto e Problema
 
 O escritório de advocacia recebe diariamente centenas de documentos (identidades, comprovantes de residência, contracheques, certidões, laudos, procurações e contratos) através do WhatsApp do atendimento, e-mails e balcão físico. O fluxo manual anterior exigia abrir cada arquivo, renomeá-lo em padrão interno e digitar os dados em planilhas (uma média de 4 minutos por documento).
